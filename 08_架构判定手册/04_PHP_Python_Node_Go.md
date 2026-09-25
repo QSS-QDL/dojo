@@ -87,7 +87,7 @@ FastAPI: /docs /redoc /openapi.json 暴露 · Pydantic 类型混淆 · 依赖注
    汇点：任何读「未定义属性时落到 Object.prototype」的逻辑（模板引擎选项/子进程参数/配置默认值）
    判定探针：POST {"__proto":{"polluted":"yes"}} 后 GET 任意页看响应差异/错误变化（无害）
    历史链：express-fileupload、lodash merge、ejs/pug 的 options 注入 → RCE
-② JWT 面：jsonwebtoken 库的 alg 混淆历史（none/HS256 弱密钥）——Node 后台 JWT 使用率极高（10 篇详解）
+② JWT 面：jsonwebtoken 库的 alg 混淆历史（none/HS256 弱密钥）——Node 后台 JWT 使用率极高（05 篇详解）
 ③ SSRF：node-fetch/axios/got 的重定向跟随与协议支持差异（file:// 部分库支持）；
    Next.js 的 image 优化端点（/_next/image?url=）历史 SSRF 面
 ④ Next.js 专项：middleware 绕过（CVE-2025-29927：x-middleware-subrequest 头跳过中间件鉴权——
@@ -97,7 +97,7 @@ FastAPI: /docs /redoc /openapi.json 暴露 · Pydantic 类型混淆 · 依赖注
 ⑥ npm 供应链：package.json 依赖里的 typosquatting/恶意包（识别级：审计时看 dependencies 有没有眼生包）
 ```
 
-### 【测试】：原型污染探针（上面那发，无害）；`__NEXT_DATA__` 里翻 serverProps（纯读）；`/_next/image?url=` SSRF 探测（打自己的 dnslog）；JWT 三查（alg/密钥强度/kid 注入——10 篇）。
+### 【测试】：原型污染探针（上面那发，无害）；`__NEXT_DATA__` 里翻 serverProps（纯读）；`/_next/image?url=` SSRF 探测（打自己的 dnslog）；JWT 三查（alg/密钥强度/kid 注入——05 篇）。
 ### 【学习】：本地 Express+mongo 十行登录 demo（与 02 篇 MongoDB 靶子同一个，一次搭两个栈）；PortSwigger prototype pollution 全 lab；智库 `prototype pollution` · `nextjs middleware`。
 
 ---

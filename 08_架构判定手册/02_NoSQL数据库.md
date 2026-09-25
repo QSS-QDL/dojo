@@ -171,7 +171,7 @@ POST /_search {"query":{"match_all":{}}}   ← DSL 查询
 | 1 | `GET /` 拿到版本 | ✅ 未授权成立 |
 | 2 | `_cat/indices` 拿索引清单+文档数 | ✅ 影响面量化（「含 user 索引 320 万文档」） |
 | 3 | `_mapping` 拿字段结构 | ✅ 证明「含敏感字段」（`id_card`/`phone` 字段名即证据） |
-| 4 | `_search` 取 1 条样本 | ⚠️ **单条即停 + 打码**（同 01 篇 §15 铁律） |
+| 4 | `_search` 取 1 条样本 | ⚠️ **单条即停 + 打码**（同 07_SRC/04 §15 铁律） |
 | 5 | 批量导出 | ❌ 越线 |
 | 6 | 写操作（`_bulk`/`PUT mapping`/删索引） | ❌ 绝对越线 |
 
@@ -223,7 +223,7 @@ POST /_search {"query":{"match_all":{}}}   ← DSL 查询
 
 ### 【学习】
 - 本地：docker `osixia/openldap` + `ldapsearch`；智库 `LDAP injection`（cnvd-lab `I01` 有专篇，配合读）
-- 验收：能解释 LDAP 注入与 NoSQL 操作符注入的**同构性**（都是「输入进入结构化查询表达式」——dojo 02/01 数据流模型的第 N 次验证）
+- 验收：能解释 LDAP 注入与 NoSQL 操作符注入的**同构性**（都是「输入进入结构化查询表达式」——dojo 02_心智模型/01 数据流模型的第 N 次验证）
 
 ---
 

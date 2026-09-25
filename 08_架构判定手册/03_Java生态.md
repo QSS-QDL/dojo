@@ -59,7 +59,7 @@ SpEL 面
 ```
 1. /actuator（401/403/404 三态判定：401=有但未授权→找独立管理端口或绕过；404=关了或改前缀→试 /manage/xxx、老路径）
 2. env/heapdump 存在 → 高危成立（heapdump 下载属「读取敏感数据」——存在性+首字节 magic 证明即停，不全量下载分析）
-3. mappings 存在 → 拿到全部接口 → 转越权测试流程（07 篇 04 §3-4）—— actuator 的最大价值不是它自己，是它送你的接口字典
+3. mappings 存在 → 拿到全部接口 → 转越权测试流程（07_SRC/04 §3-4）—— actuator 的最大价值不是它自己，是它送你的接口字典
 4. Spring4Shell 判定：先查三要素（版本从报错/静态资源/功能特征推），不满足不发 payload
 ```
 
@@ -112,11 +112,11 @@ SpEL 面
 ### 【判定】：URL 以 `.action`/`.do` 结尾（强特征）；报错含 `ognl.OgnlException`/`There is no Action mapped for namespace`；`struts.multipart.parser` 类报错=版本敏感信息白送。
 ### 【攻击面】：S2 系列 CVE 全在「输入进入 OGNL 求值」这一条河上——Content-Type 头（S2-045/046）、`redirect:`/`action:` 前缀（S2-016/032）、多语言参数（S2-057 需 alwaysSelectFullNamespace）、上传文件名。判定=版本号（报错里常有）；无版本时**按 CVE 时间线从新到旧逐个无害探测**（DNSLog 回显链）。
 ### 【测试红线】：OGNL 表达式探测用「算术回显」（`%{3*3}` 返回 9）或 DNSLog，**不执行命令**——`%{...}` 里放命令就是 RCE 执行，证明到算术/DNS 即高危成立。
-### 【学习】：vulhub struts2 系列全通（它是「一个数据流模式生出一族 CVE」的最佳教材，配合 dojo 02/01 读）；智库 `S2-` · `OGNL`。验收：能用数据流语言解释 S2-045 的源头/汇点（Content-Type 头 → multipart 解析器报错信息构造 → OGNL 求值）。
+### 【学习】：vulhub struts2 系列全通（它是「一个数据流模式生出一族 CVE」的最佳教材，配合 dojo 02_心智模型/01 读）；智库 `S2-` · `OGNL`。验收：能用数据流语言解释 S2-045 的源头/汇点（Content-Type 头 → multipart 解析器报错信息构造 → OGNL 求值）。
 
 ---
 
-## 四、WebLogic / Tomcat / JBoss（中间件层，详见 05 篇，此处只放 Java 侧判定）
+## 四、WebLogic / Tomcat / JBoss（中间件层，详见 08 篇，此处只放 Java 侧判定）
 
 | 组件 | 判定指纹 | 头部攻击面（识别级） |
 |---|---|---|
@@ -165,7 +165,7 @@ Mapper XML 与注解（@Select）双源都要扫；MyBatis-Plus 的 wrapper 相�
 1. **学习顺序服从你的 Track B**：J01（语法）进行时同步读本篇 §五 MyBatis；J02（反序列化）时同步 §二 Shiro + §五 Fastjson；J03（CodeQL）时把本篇所有「判定指纹」写成 CodeQL/grep 规则——**手册变工具，才算学完**。
 2. 本篇所有组件的「攻击面地图」都用同一副眼镜看：**寄生门（actuator/console/manager）+ 解析差异（路径归一化）+ 数据变指令（OGNL/SpEL/反序列化/JNDI）**——三个模式记住，新组件出现你能自己推它的攻击面（这就是 L3）。
 3. 每个组件配一次 vulhub 本地实操（先打后看答案纪律），实操后案例卡入库（家族归类：actuator 类/默认key类/路径绕过类…）。
-4. 版本判定能力是 Java 生态的第一生产力（N-day 全靠它）：练「静态资源哈希比对法」（07 篇 03 §8）直到 10 分钟内给出任意 Java 系统的框架+中间件+版本三件套。
+4. 版本判定能力是 Java 生态的第一生产力（N-day 全靠它）：练「静态资源哈希比对法」（07_SRC/03 §8）直到 10 分钟内给出任意 Java 系统的框架+中间件+版本三件套。
 
 ## 【验收标准】
 
